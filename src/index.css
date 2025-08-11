@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Stamp default style */
+.stamp {
+  border: 2px solid #cc0000;
+  color: #cc0000;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  font-family: 'Times New Roman', serif;
+  font-weight: bold;
+  text-align: center;
+  min-width: 300px;
+}
+
+.stamp .line { line-height: 1.2; }
+
+/* Guidelines while dragging */
+.guideline-x, .guideline-y {
+  position: absolute;
+  background: rgba(204, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 50;
+}
+.guideline-x { height: 1px; width: 100%; }
+.guideline-y { width: 1px; height: 100%; }
+
