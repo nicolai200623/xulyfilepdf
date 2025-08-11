@@ -2,49 +2,74 @@ import html2canvas from 'html2canvas'
 import { PDFDocument, degrees } from 'pdf-lib'
 
 // Render element reliably by cloning it to a detached, fixed container to avoid transform/overflow issues
-async function renderStampToDataURL(el, { width, height, scale = 3 }) {
-  // Clone target
+async function renderStampToDataURL(el, options = {}) {
+  const { width, height, scale = 3 } = options
+
+  // Clone element with styles
   const clone = el.cloneNode(true)
-  // Container to isolate layout
+
+  // Container to render offscreen
   const wrapper = document.createElement('div')
-  wrapper.style.position = 'fixed'
-  wrapper.style.left = '-10000px'
-  wrapper.style.top = '0'
-  wrapper.style.width = `${width}px`
-  wrapper.style.height = `${height}px`
-  wrapper.style.pointerEvents = 'none'
-  wrapper.style.transform = 'none'
-  wrapper.style.contain = 'strict'
+  wrapper.style.cssText = `
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: ${width}px;
+    height: ${height}px;
+    pointer-events: none;
+    overflow: visible;
+    background: white;
+  `
+
+  // Reset transform and sizing on clone
+  clone.style.position = 'relative'
   clone.style.transform = 'none'
   clone.style.width = '100%'
   clone.style.height = '100%'
+
+  // Copy important computed styles
+  try {
+    const originalStyles = window.getComputedStyle(el)
+    const importantStyles = ['border', 'color', 'background', 'font-family', 'font-weight', 'text-align', 'padding']
+    importantStyles.forEach(prop => {
+      clone.style[prop] = originalStyles.getPropertyValue(prop)
+    })
+  } catch {}
+
+  // Ensure class names preserved
+  clone.className = el.className
+
   wrapper.appendChild(clone)
   document.body.appendChild(wrapper)
 
-  // Wait next frame to ensure styles applied
-  await new Promise(r => requestAnimationFrame(r))
+  // Wait for render paint
+  await new Promise(r => setTimeout(r, 100))
 
-  // Pre-create canvas with willReadFrequently to address Canvas2D warning
+  // Create canvas with willReadFrequently hint
   const canvasEl = document.createElement('canvas')
   canvasEl.width = Math.max(1, Math.floor(width * scale))
   canvasEl.height = Math.max(1, Math.floor(height * scale))
-  // Initialize context with hint; ignore return since html2canvas will draw on provided canvas
   try { canvasEl.getContext('2d', { willReadFrequently: true }) } catch {}
 
-  const canvas = await html2canvas(wrapper, {
-    scale,
-    backgroundColor: null,
-    useCORS: true,
-    logging: false,
-    canvas: canvasEl,
-    // Prefer CORS images if any
-    allowTaint: false,
-    removeContainer: true,
-  })
-
-  const dataUrl = canvas.toDataURL('image/png')
-  document.body.removeChild(wrapper)
-  return dataUrl
+  try {
+    const canvas = await html2canvas(wrapper, {
+      scale,
+      backgroundColor: 'white',
+      useCORS: true,
+      logging: false,
+      width: width,
+      height: height,
+      windowWidth: width,
+      windowHeight: height,
+      allowTaint: true,
+      foreignObjectRendering: false,
+      canvas: canvasEl,
+      removeContainer: true,
+    })
+    return canvas.toDataURL('image/png')
+  } finally {
+    document.body.removeChild(wrapper)
+  }
 }
 
 function toUint8Array(input) {
@@ -87,25 +112,20 @@ export async function exportStampedPDF({ fileArrayBuffer, pagesMeta, stampsByPag
     outPdf.addPage(copiedPages[i])
   }
 
-  // Helper to get CSS render size from DOM if meta missing
-  function getCssPageSizeFromDom(idx) {
+  // Helper to get CSS render size and offset from DOM if meta missing
+  function getCssPageMetricsFromDom(idx) {
     try {
       const wrapper = document.querySelector(`[data-page-wrapper][data-page-index="${idx}"]`)
       if (!wrapper) return null
-      // react-pdf renders canvas or svg inside
-      const canvas = wrapper.querySelector('canvas')
-      if (canvas) {
-        const rect = canvas.getBoundingClientRect()
-        return { width: rect.width, height: rect.height }
-      }
-      const svg = wrapper.querySelector('svg')
-      if (svg) {
-        const rect = svg.getBoundingClientRect()
-        return { width: rect.width, height: rect.height }
-      }
+      const rect = wrapper.getBoundingClientRect()
+      return { width: rect.width, height: rect.height, left: rect.left + window.scrollX, top: rect.top + window.scrollY }
     } catch {}
     return null
   }
+
+  // Debug logs
+  console.log('Starting export with stamps:', stampsByPage)
+  console.log('Pages meta:', pagesMeta)
 
   // Now draw stamps using real PDF page sizes (points)
   for (let pageIndex = 0; pageIndex < outPdf.getPageCount(); pageIndex++) {
@@ -119,9 +139,9 @@ export async function exportStampedPDF({ fileArrayBuffer, pagesMeta, stampsByPag
       cssW = meta.width
       cssH = meta.height
     } else {
-      const domSize = getCssPageSizeFromDom(pageIndex)
-      cssW = (domSize && domSize.width) || pdfW
-      cssH = (domSize && domSize.height) || pdfH
+      const domMetrics = getCssPageMetricsFromDom(pageIndex)
+      cssW = (domMetrics && domMetrics.width) || pdfW
+      cssH = (domMetrics && domMetrics.height) || pdfH
     }
 
     const sx = pdfW / cssW
@@ -129,49 +149,73 @@ export async function exportStampedPDF({ fileArrayBuffer, pagesMeta, stampsByPag
 
     const stamps = (stampsByPage[pageIndex] || [])
     for (const stamp of stamps) {
-      const el = document.getElementById(stamp.elId)
-      const contentEl = document.getElementById(`${stamp.elId}-content`)
-      const target = el || contentEl
-      if (!target) {
-        console.warn('Stamp element not found for export', stamp.elId)
+      // Find element by ID with fallback to content
+      let el = document.getElementById(stamp.elId)
+      if (!el) el = document.getElementById(`${stamp.elId}-content`)
+      if (!el) {
+        console.warn('Stamp element not found:', stamp.elId)
         continue
       }
 
-      // Ensure the element is visible and rendered for html2canvas
-      target.style.transformOrigin = 'top left'
-
-      // First try to capture the whole stamp node
-      let dataUrl = await renderStampToDataURL(target, 3)
-      if (!dataUrl || dataUrl.length < 200) {
-        // Fallback: try capturing inner content if image seemed empty/suspicious
-        if (contentEl && contentEl !== target) {
-          dataUrl = await renderStampToDataURL(contentEl, 3)
-        }
+      // Measure live position and size relative to page wrapper to avoid state drift
+      const domMetrics = getCssPageMetricsFromDom(pageIndex)
+      if (!domMetrics) {
+        console.warn('Page DOM metrics missing; skipping stamp', stamp.id)
+        continue
       }
-      if (!dataUrl || dataUrl.length < 200) {
-        console.warn('Failed to capture stamp image (empty dataUrl)', stamp.elId)
+      const pageLeft = domMetrics.left
+      const pageTop = domMetrics.top
+
+      // Use the absolute-positioned container (parent of stamp el) for coordinates (not affected by inner rotation)
+      const containerEl = el.parentElement || el
+      const containerRect = containerEl.getBoundingClientRect()
+      const relX = (containerRect.left + window.scrollX) - pageLeft
+      const relY = (containerRect.top + window.scrollY) - pageTop
+
+      // Use container box size (the configured stamp width/height)
+      const elW = Math.max(1, Math.round(containerRect.width))
+      const elH = Math.max(1, Math.round(containerRect.height))
+
+      // Clamp within page bounds to avoid off-page draw
+      const clamp = (val, min, max) => Math.min(Math.max(val, min), max)
+      const clampedX = clamp(relX, 0, cssW - elW)
+      const clampedY = clamp(relY, 0, cssH - elH)
+
+      console.log(`Processing stamp ${stamp.id} on page ${pageIndex}:`, {
+        position: { x: clampedX, y: clampedY },
+        size: { width: elW, height: elH },
+        rotation: stamp.rotation,
+        cssPage: { cssW, cssH }, pdfPage: { pdfW, pdfH }, scale: { sx, sy },
+        raw: { relX, relY }
+      })
+
+      // Capture with measured size (capture inner stamp element to keep styles)
+      const dataUrl = await renderStampToDataURL(el, {
+        width: elW,
+        height: elH,
+        scale: 3,
+      })
+
+      if (!dataUrl || dataUrl === 'data:,') {
+        console.error('Failed to capture stamp:', stamp.elId)
         continue
       }
 
       const pngBytes = dataUrlToUint8Array(dataUrl)
       const png = await outPdf.embedPng(pngBytes)
 
-      // Map CSS coordinates to PDF points; invert Y axis
-      const xPt = stamp.x * sx
-      const yBottomCss = stamp.y + stamp.height
-      const yPt = (cssH - yBottomCss) * sy
-
-      const wPt = stamp.width * sx
-      const hPt = stamp.height * sy
-
-      const rotation = stamp.rotation || 0
+      // CSS -> PDF mapping (invert Y) using container origin
+      const xPt = clampedX * sx
+      const yPt = pdfH - ((clampedY + elH) * sy)
+      const wPt = elW * sx
+      const hPt = elH * sy
 
       page.drawImage(png, {
         x: xPt,
         y: yPt,
         width: wPt,
         height: hPt,
-        rotate: rotation ? degrees(rotation) : undefined,
+        rotate: stamp.rotation ? degrees(stamp.rotation) : degrees(0),
         opacity: 1,
       })
     }

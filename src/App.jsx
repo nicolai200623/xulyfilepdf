@@ -22,6 +22,7 @@ export default function App() {
   const [viewerBytes, setViewerBytes] = useState(null)
   const [fileArrayBuffer, setFileArrayBuffer] = useState(null) // export-safe bytes
   const [pagesMeta, setPagesMeta] = useState({})
+  const [activePage, setActivePage] = useState(0)
 
   // All stamps grouped by page index
   const undo = useUndoRedo({}) // { [pageIndex]: [stamps] }
@@ -42,6 +43,7 @@ export default function App() {
     const exportCopy = new Uint8Array(src.length); exportCopy.set(src)
     setViewerBytes(viewCopy)
     setFileArrayBuffer(exportCopy)
+    setActivePage(0)
   }
 
   const handleDrop = (e) => {
@@ -50,9 +52,9 @@ export default function App() {
     if (f && f.type === 'application/pdf') onFileChange(f)
   }
 
-  const addStamp = () => {
+  const addStamp = (pageIndex = activePage) => {
     if (!fileArrayBuffer) return
-    const pageIndex = 0
+    const targetPage = Number.isFinite(pageIndex) ? pageIndex : 0
     const newStamp = {
       id: uid(),
       elId: `stamp-${uid()}`,
@@ -60,7 +62,7 @@ export default function App() {
       y: 40,
       ...draft,
     }
-    const next = { ...stampsByPage, [pageIndex]: [...(stampsByPage[pageIndex]||[]), newStamp] }
+    const next = { ...stampsByPage, [targetPage]: [...(stampsByPage[targetPage]||[]), newStamp] }
     undo.set(next)
   }
 
@@ -133,12 +135,17 @@ export default function App() {
 
       {/* Right: PDF Viewer */}
       <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 p-2 border-b bg-white">
+          <span className="text-sm text-gray-600">Trang đang thao tác: {activePage + 1}</span>
+          <button className="ml-auto px-2 py-1 border rounded" onClick={() => addStamp(activePage)}>Thêm Con Dấu vào trang {activePage + 1}</button>
+        </div>
         <PDFViewer
           fileName={memoFileName}
           fileBytes={viewerBytes}
           stampsByPage={stampsByPage}
           onUpdateStamp={updateStamp}
           onPagesMeta={setPagesMeta}
+          onSetActivePage={setActivePage}
         />
       </div>
     </div>

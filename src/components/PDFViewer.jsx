@@ -13,6 +13,7 @@ export default function PDFViewer({
   stampsByPage,
   onUpdateStamp,
   onPagesMeta,
+  onSetActivePage,
 }) {
   const containerRef = useRef(null)
   const [numPages, setNumPages] = useState(null)
@@ -83,7 +84,13 @@ export default function PDFViewer({
             onLoadError={(e) => { console.error('PDF load error', e); setDocError(e?.message || e) }}
           >
             {Array.from(new Array(numPages), (el, index) => (
-              <div key={`page_${index}`} data-page-wrapper data-page-index={index} className="relative inline-block mb-4">
+              <div
+                key={`page_${index}`}
+                data-page-wrapper
+                data-page-index={index}
+                className="relative inline-block mb-4"
+                onMouseEnter={() => onSetActivePage && onSetActivePage(index)}
+              >
                 <Page
                   pageNumber={index + 1}
                   scale={scale}

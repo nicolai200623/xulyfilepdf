@@ -56,6 +56,7 @@ export default function StampOverlay({
     <Draggable
       nodeRef={nodeRef}
       position={{ x: stamp.x, y: stamp.y }}
+      bounds="parent"
       onStart={() => setDragging(true)}
       onStop={() => setDragging(false)}
       onDrag={(e, data) => onChange({ ...stamp, x: data.x, y: data.y })}
