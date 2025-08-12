@@ -18,7 +18,7 @@ async function renderStampToDataURL(el, options = {}) {
     height: ${height}px;
     pointer-events: none;
     overflow: visible;
-    background: white;
+    background: transparent;
   `
 
   // Reset transform and sizing on clone
@@ -54,7 +54,8 @@ async function renderStampToDataURL(el, options = {}) {
   try {
     const canvas = await html2canvas(wrapper, {
       scale,
-      backgroundColor: 'white',
+      // Preserve transparency on the rendered stamp
+      backgroundColor: null,
       useCORS: true,
       logging: false,
       width: width,

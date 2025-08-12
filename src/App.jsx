@@ -6,13 +6,21 @@ import useUndoRedo from './hooks/useUndoRedo'
 
 function uid() { return Math.random().toString(36).slice(2) }
 
+
+function formatDateVN(d = new Date()) {
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `Ngày: ${dd}-${mm}-${yyyy}`
+}
+
 const DEFAULT_STAMP = {
   line1: 'CHỨNG THỰC BẢN SAO ĐÚNG VỚI BẢN CHÍNH!',
   line2: 'Số chứng thực:........quyển số: 1....../2025 SCT/BS',
-  line3: 'Ngày: 11-12-2025',
+  line3: formatDateVN(),
   line4: 'CÔNG CHỨNG VIÊN',
   width: 320,
-  height: 120,
+  height: 130,
   rotation: 0,
 }
 
@@ -62,6 +70,8 @@ export default function App() {
       x: 40,
       y: 40,
       ...draft,
+      // Ensure each new stamp uses the current date at creation time
+      line3: formatDateVN(),
     }
     const next = { ...stampsByPage, [targetPage]: [...(stampsByPage[targetPage]||[]), newStamp] }
     undo.set(next)
