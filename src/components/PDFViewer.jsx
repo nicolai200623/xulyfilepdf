@@ -14,6 +14,7 @@ export default function PDFViewer({
   onUpdateStamp,
   onPagesMeta,
   onSetActivePage,
+  onNumPages,
 }) {
   const containerRef = useRef(null)
   const [numPages, setNumPages] = useState(null)
@@ -32,6 +33,7 @@ export default function PDFViewer({
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages)
     setDocError(null)
+    if (onNumPages) onNumPages(numPages)
   }
 
   const onPageLoadSuccess = (page, index) => {

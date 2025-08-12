@@ -23,6 +23,7 @@ export default function App() {
   const [fileArrayBuffer, setFileArrayBuffer] = useState(null) // export-safe bytes
   const [pagesMeta, setPagesMeta] = useState({})
   const [activePage, setActivePage] = useState(0)
+  const [numPages, setNumPages] = useState(0)
 
   // All stamps grouped by page index
   const undo = useUndoRedo({}) // { [pageIndex]: [stamps] }
@@ -124,6 +125,8 @@ export default function App() {
           onRedo={undo.redo}
           canUndo={undo.canUndo}
           canRedo={undo.canRedo}
+          numPages={numPages}
+          hasFile={!!fileArrayBuffer}
         />
 
         <div className="p-4 border-t">
@@ -136,8 +139,13 @@ export default function App() {
       {/* Right: PDF Viewer */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 p-2 border-b bg-white">
-          <span className="text-sm text-gray-600">Trang đang thao tác: {activePage + 1}</span>
-          <button className="ml-auto px-2 py-1 border rounded" onClick={() => addStamp(activePage)}>Thêm Con Dấu vào trang {activePage + 1}</button>
+          <span className="text-sm text-gray-600">Trang đang thao tác: {activePage + 1}{numPages ? ` / ${numPages}` : ''}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-sm text-gray-600">Thêm vào trang hiện tại</label>
+            <button className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700" title="Thêm con dấu vào trang đang chọn" onClick={() => addStamp(activePage)}>
+              + Thêm Dấu
+            </button>
+          </div>
         </div>
         <PDFViewer
           fileName={memoFileName}
@@ -146,6 +154,7 @@ export default function App() {
           onUpdateStamp={updateStamp}
           onPagesMeta={setPagesMeta}
           onSetActivePage={setActivePage}
+          onNumPages={setNumPages}
         />
       </div>
     </div>

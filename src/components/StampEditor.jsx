@@ -9,8 +9,19 @@ export default function StampEditor({
   onRedo,
   canUndo,
   canRedo,
+  numPages = 0,
+  hasFile = false,
 }) {
   const onChange = (key, value) => setStampDraft(prev => ({ ...prev, [key]: value }))
+  const [pageInput, setPageInput] = React.useState('1')
+
+  const addToChosenPage = () => {
+    if (!hasFile) return
+    let p = parseInt(pageInput, 10)
+    if (!Number.isFinite(p) || p < 1) p = 1
+    if (numPages > 0) p = Math.min(Math.max(p, 1), numPages)
+    onAddStamp(p - 1)
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -49,10 +60,33 @@ export default function StampEditor({
       </div>
 
       <div className="flex items-center gap-2 pt-2">
-        <button className="bg-red-600 text-white px-3 py-1 rounded" onClick={onAddStamp}>Thêm Con Dấu</button>
-        <button className="bg-gray-200 px-3 py-1 rounded" onClick={onClearStamps}>Xoá tất cả</button>
-        <button className="bg-gray-200 px-3 py-1 rounded disabled:opacity-50" disabled={!canUndo} onClick={onUndo}>Undo</button>
-        <button className="bg-gray-200 px-3 py-1 rounded disabled:opacity-50" disabled={!canRedo} onClick={onRedo}>Redo</button>
+        <div className="flex items-center gap-2">
+          <label className="text-sm whitespace-nowrap" htmlFor="pageNumber">Trang:</label>
+          <input
+            id="pageNumber"
+            type="number"
+            min={1}
+            max={numPages || undefined}
+            className="w-20 border rounded px-2 py-1"
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value)}
+            placeholder="1"
+            disabled={!hasFile}
+          />
+          <button
+            className="bg-red-600 text-white px-3 py-1 rounded disabled:opacity-50 hover:bg-red-700"
+            title="Thêm con dấu vào trang đã nhập"
+            disabled={!hasFile}
+            onClick={addToChosenPage}
+          >
+            + Thêm vào trang
+          </button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="bg-gray-200 px-3 py-1 rounded" onClick={onClearStamps}>Xoá tất cả</button>
+          <button className="bg-gray-200 px-3 py-1 rounded disabled:opacity-50" disabled={!canUndo} onClick={onUndo}>Undo</button>
+          <button className="bg-gray-200 px-3 py-1 rounded disabled:opacity-50" disabled={!canRedo} onClick={onRedo}>Redo</button>
+        </div>
       </div>
 
       <div className="pt-4">
